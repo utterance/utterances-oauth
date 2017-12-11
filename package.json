@@ -1,0 +1,25 @@
+{
+  "name": "utterances-oauth",
+  "version": "0.1.0",
+  "description": "GitHub OAuth server for utterances",
+  "main": "dist/index.js",
+  "scripts": {
+    "develop": "npm run build -- --watch --pretty",
+    "start-env": "node --require dotenv/config dist/index.js",
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "engines": {
+    "node": "8.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/utterance/utterances-oauth"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^8.0.57",
+    "dotenv": "^4.0.0",
+    "typescript": "2.6.2"
+  }
+}
