@@ -5,7 +5,6 @@ export interface AppSettings {
   client_secret: string;
   bot_token: string;
   origins: string[];
-  scopes: string[];
   state_password: string;
   app_root: string;
   base_path: string;
@@ -14,17 +13,16 @@ export interface AppSettings {
 }
 
 export async function getAppSettings(): Promise<AppSettings> {
-  const { CLIENT_ID, CLIENT_SECRET, BOT_TOKEN, STATE_PASSWORD, APP_ROOT, ORIGINS, SCOPES, USER_AGENT } = process.env;
+  const { CLIENT_ID, CLIENT_SECRET, BOT_TOKEN, STATE_PASSWORD, APP_ROOT, ORIGINS, USER_AGENT } = process.env;
   console.log(`CLIENT_ID: ${CLIENT_ID}
 HAS CLIENT_SECRET: ${!!CLIENT_SECRET}
 HAS BOT_TOKEN: ${!!BOT_TOKEN}
 HAS STATE_PASSWORD: ${!!STATE_PASSWORD}
 APP_ROOT: ${APP_ROOT}
 ORIGINS: ${ORIGINS}
-SCOPES: ${SCOPES}
 USER_AGENT: ${USER_AGENT}`);
 
-  if (!CLIENT_ID || !CLIENT_SECRET || !BOT_TOKEN || !STATE_PASSWORD || !APP_ROOT || !ORIGINS || !SCOPES || !USER_AGENT) {
+  if (!CLIENT_ID || !CLIENT_SECRET || !BOT_TOKEN || !STATE_PASSWORD || !APP_ROOT || !ORIGINS || !USER_AGENT) {
     throw new Error('missing app settings.');
   }
 
@@ -34,14 +32,13 @@ USER_AGENT: ${USER_AGENT}`);
   const state_password = STATE_PASSWORD;
   const { app_root, base_path, secure_cookie } = parseAppRoot(APP_ROOT);
   const origins = ORIGINS.split(',');
-  const scopes = SCOPES.split(',');
   const user_agent = USER_AGENT;
 
   if (state_password.length !== 32) {
     throw new Error('"state-password" must be 32 characters.');
   }
 
-  return { client_id, client_secret, state_password, bot_token, origins, scopes, app_root, base_path, user_agent, secure_cookie };
+  return { client_id, client_secret, state_password, bot_token, origins, app_root, base_path, user_agent, secure_cookie };
 }
 
 function parseAppRoot(url: string) {

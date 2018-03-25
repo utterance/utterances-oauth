@@ -93,21 +93,17 @@ function badRequest(res, message) {
 }
 function authorizeRequestHandler(settings, query, res) {
     return __awaiter(this, void 0, void 0, function () {
-        var origins, scopes, client_id, state_password, app_root, scope, appReturnUrl, state, redirect_uri;
+        var origins, client_id, state_password, app_root, appReturnUrl, state, redirect_uri;
         return __generator(this, function (_a) {
-            origins = settings.origins, scopes = settings.scopes, client_id = settings.client_id, state_password = settings.state_password, app_root = settings.app_root;
-            scope = query.scope, appReturnUrl = query.redirect_uri;
-            if (!scope || Array.isArray(scope) || scopes.indexOf(scope) === -1) {
-                badRequest(res, "\"scope\" is required and must be one of the following: \"" + scopes.join('", "') + "\".");
-                return [2];
-            }
+            origins = settings.origins, client_id = settings.client_id, state_password = settings.state_password, app_root = settings.app_root;
+            appReturnUrl = query.redirect_uri;
             if (!appReturnUrl || Array.isArray(appReturnUrl) || !origins.find(function (origin) { return appReturnUrl.indexOf(origin) === 0; })) {
                 badRequest(res, "\"redirect_uri\" is required and must match the following origins: \"" + origins.join('", "') + "\".");
                 return [2];
             }
             state = state_1.encodeState(appReturnUrl, state_password);
             redirect_uri = app_root + '/authorized';
-            res.writeHead(302, { Location: authorizeUrl + "?" + querystring_1.stringify({ client_id: client_id, redirect_uri: redirect_uri, scope: scope, state: state }) });
+            res.writeHead(302, { Location: authorizeUrl + "?" + querystring_1.stringify({ client_id: client_id, redirect_uri: redirect_uri, state: state }) });
             res.end();
             return [2];
         });

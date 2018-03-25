@@ -38,11 +38,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var url_1 = require("url");
 function getAppSettings() {
     return __awaiter(this, void 0, void 0, function () {
-        var _a, CLIENT_ID, CLIENT_SECRET, BOT_TOKEN, STATE_PASSWORD, APP_ROOT, ORIGINS, SCOPES, USER_AGENT, client_id, client_secret, bot_token, state_password, _b, app_root, base_path, secure_cookie, origins, scopes, user_agent;
+        var _a, CLIENT_ID, CLIENT_SECRET, BOT_TOKEN, STATE_PASSWORD, APP_ROOT, ORIGINS, USER_AGENT, client_id, client_secret, bot_token, state_password, _b, app_root, base_path, secure_cookie, origins, user_agent;
         return __generator(this, function (_c) {
-            _a = process.env, CLIENT_ID = _a.CLIENT_ID, CLIENT_SECRET = _a.CLIENT_SECRET, BOT_TOKEN = _a.BOT_TOKEN, STATE_PASSWORD = _a.STATE_PASSWORD, APP_ROOT = _a.APP_ROOT, ORIGINS = _a.ORIGINS, SCOPES = _a.SCOPES, USER_AGENT = _a.USER_AGENT;
-            console.log("CLIENT_ID: " + CLIENT_ID + "\nHAS CLIENT_SECRET: " + !!CLIENT_SECRET + "\nHAS BOT_TOKEN: " + !!BOT_TOKEN + "\nHAS STATE_PASSWORD: " + !!STATE_PASSWORD + "\nAPP_ROOT: " + APP_ROOT + "\nORIGINS: " + ORIGINS + "\nSCOPES: " + SCOPES + "\nUSER_AGENT: " + USER_AGENT);
-            if (!CLIENT_ID || !CLIENT_SECRET || !BOT_TOKEN || !STATE_PASSWORD || !APP_ROOT || !ORIGINS || !SCOPES || !USER_AGENT) {
+            _a = process.env, CLIENT_ID = _a.CLIENT_ID, CLIENT_SECRET = _a.CLIENT_SECRET, BOT_TOKEN = _a.BOT_TOKEN, STATE_PASSWORD = _a.STATE_PASSWORD, APP_ROOT = _a.APP_ROOT, ORIGINS = _a.ORIGINS, USER_AGENT = _a.USER_AGENT;
+            console.log("CLIENT_ID: " + CLIENT_ID + "\nHAS CLIENT_SECRET: " + !!CLIENT_SECRET + "\nHAS BOT_TOKEN: " + !!BOT_TOKEN + "\nHAS STATE_PASSWORD: " + !!STATE_PASSWORD + "\nAPP_ROOT: " + APP_ROOT + "\nORIGINS: " + ORIGINS + "\nUSER_AGENT: " + USER_AGENT);
+            if (!CLIENT_ID || !CLIENT_SECRET || !BOT_TOKEN || !STATE_PASSWORD || !APP_ROOT || !ORIGINS || !USER_AGENT) {
                 throw new Error('missing app settings.');
             }
             client_id = CLIENT_ID;
@@ -51,12 +51,11 @@ function getAppSettings() {
             state_password = STATE_PASSWORD;
             _b = parseAppRoot(APP_ROOT), app_root = _b.app_root, base_path = _b.base_path, secure_cookie = _b.secure_cookie;
             origins = ORIGINS.split(',');
-            scopes = SCOPES.split(',');
             user_agent = USER_AGENT;
             if (state_password.length !== 32) {
                 throw new Error('"state-password" must be 32 characters.');
             }
-            return [2, { client_id: client_id, client_secret: client_secret, state_password: state_password, bot_token: bot_token, origins: origins, scopes: scopes, app_root: app_root, base_path: base_path, user_agent: user_agent, secure_cookie: secure_cookie }];
+            return [2, { client_id: client_id, client_secret: client_secret, state_password: state_password, bot_token: bot_token, origins: origins, app_root: app_root, base_path: base_path, user_agent: user_agent, secure_cookie: secure_cookie }];
         });
     });
 }

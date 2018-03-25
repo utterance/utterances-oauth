@@ -61,14 +61,9 @@ function badRequest(res: ServerResponse, message: string) {
 }
 
 async function authorizeRequestHandler(settings: AppSettings, query: ParsedUrlQuery, res: ServerResponse) {
-  const { origins, scopes, client_id, state_password, app_root } = settings;
+  const { origins, client_id, state_password, app_root } = settings;
 
-  const { scope, redirect_uri: appReturnUrl } = query;
-
-  if (!scope || Array.isArray(scope) || scopes.indexOf(scope) === -1) {
-    badRequest(res, `"scope" is required and must be one of the following: "${scopes.join('", "')}".`);
-    return;
-  }
+  const { redirect_uri: appReturnUrl } = query;
 
   if (!appReturnUrl || Array.isArray(appReturnUrl) || !origins.find(origin => appReturnUrl.indexOf(origin) === 0)) {
     badRequest(res, `"redirect_uri" is required and must match the following origins: "${origins.join('", "')}".`);
@@ -77,7 +72,7 @@ async function authorizeRequestHandler(settings: AppSettings, query: ParsedUrlQu
 
   const state = encodeState(appReturnUrl, state_password);
   const redirect_uri = app_root + '/authorized';
-  res.writeHead(302, { Location: `${authorizeUrl}?${stringifyQuery({ client_id, redirect_uri, scope, state })}` });
+  res.writeHead(302, { Location: `${authorizeUrl}?${stringifyQuery({ client_id, redirect_uri, state })}` });
   res.end();
 }
 
