@@ -8,7 +8,6 @@ import { addCorsHeaders } from './cors';
 
 const authorizeUrl = 'https://github.com/login/oauth/authorize';
 const accessTokenUrl = 'https://github.com/login/oauth/access_token';
-const cookieRegex = /state=([0-9a-f]+)/;
 
 export function routeRequest(settings: AppSettings, req: IncomingMessage, res: ServerResponse) {
   const url = parseUrl(req.url as string, true);
@@ -32,7 +31,7 @@ export function routeRequest(settings: AppSettings, req: IncomingMessage, res: S
     authorizedRequestHandler(settings, query, res);
   } else if (req.method === 'GET' && pathname === base_path + '/token') {
     addCorsHeaders(res, settings.origins, req.headers.origin as string);
-    tokenRequestHandler(settings, req, res);
+    tokenRequestHandler(settings, query, res);
   } else if (req.method === 'POST' && pathname.startsWith(base_path) && /^\/repos\/[a-z][\w-]+\/[\w-.]+\/issues$/i.test(pathname.substr(base_path.length))) {
     addCorsHeaders(res, settings.origins, req.headers.origin as string);
     postIssueRequestHandler(settings, pathname.substr(base_path.length), req, res);
@@ -118,27 +117,20 @@ async function authorizedRequestHandler(settings: AppSettings, query: ParsedUrlQ
     return;
   }
 
-  const cookie = encodeState(accessToken, state_password);
-  res.writeHead(302, { 'Location': docsReturnUrl, 'Set-Cookie': `state=${cookie};${secure_cookie ? 'Secure;' : ''}HttpOnly;Max-Age=300;Path=${settings.base_path}/token` });
+  const encodedState = encodeState(accessToken, state_password);
+  res.writeHead(302, { 'Location': docsReturnUrl + '?state=' + encodedState });
   res.end();
 }
 
-function tokenRequestHandler(settings: AppSettings, req: IncomingMessage, res: ServerResponse) {
-  const cookie = req.headers.cookie as string;
+function tokenRequestHandler(settings: AppSettings, query: ParsedUrlQuery, res: ServerResponse) {
+  const { state } = query;
 
-  if (!cookie) {
-    badRequest(res, '"state" cookie is required.');
+  if (!state || Array.isArray(state)) {
+    badRequest(res, '"state" is required.');
     return;
   }
 
-  const match = cookie.match(cookieRegex);
-  if (match === null) {
-    badRequest(res, '"state" cookie is invalid or missing.');
-    return;
-  }
-
-  const encryptedState = match[1];
-  const accessToken = tryDecodeState(encryptedState, settings.state_password);
+  const accessToken = tryDecodeState(state, settings.state_password);
   if (accessToken instanceof Error) {
     badRequest(res, accessToken.message)
     return;
@@ -148,6 +140,7 @@ function tokenRequestHandler(settings: AppSettings, req: IncomingMessage, res: S
   res.write(JSON.stringify(accessToken));
   res.end();
 }
+
 
 async function postIssueRequestHandler(settings: AppSettings, path: string, req: IncomingMessage, res: ServerResponse) {
   let body: string;

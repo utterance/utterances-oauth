@@ -42,7 +42,6 @@ var state_1 = require("./state");
 var cors_1 = require("./cors");
 var authorizeUrl = 'https://github.com/login/oauth/authorize';
 var accessTokenUrl = 'https://github.com/login/oauth/access_token';
-var cookieRegex = /state=([0-9a-f]+)/;
 function routeRequest(settings, req, res) {
     var url = url_1.parse(req.url, true);
     var pathname = url.pathname;
@@ -67,7 +66,7 @@ function routeRequest(settings, req, res) {
     }
     else if (req.method === 'GET' && pathname === base_path + '/token') {
         cors_1.addCorsHeaders(res, settings.origins, req.headers.origin);
-        tokenRequestHandler(settings, req, res);
+        tokenRequestHandler(settings, query, res);
     }
     else if (req.method === 'POST' && pathname.startsWith(base_path) && /^\/repos\/[a-z][\w-]+\/[\w-.]+\/issues$/i.test(pathname.substr(base_path.length))) {
         cors_1.addCorsHeaders(res, settings.origins, req.headers.origin);
@@ -111,7 +110,7 @@ function authorizeRequestHandler(settings, query, res) {
 }
 function authorizedRequestHandler(settings, query, res) {
     return __awaiter(this, void 0, void 0, function () {
-        var code, state, client_id, client_secret, state_password, user_agent, secure_cookie, docsReturnUrl, args, accessToken, _a, _b, err_1, cookie;
+        var code, state, client_id, client_secret, state_password, user_agent, secure_cookie, docsReturnUrl, args, accessToken, _a, _b, err_1, encodedState;
         return __generator(this, function (_c) {
             switch (_c.label) {
                 case 0:
@@ -154,27 +153,21 @@ function authorizedRequestHandler(settings, query, res) {
                     res.end();
                     return [2];
                 case 4:
-                    cookie = state_1.encodeState(accessToken, state_password);
-                    res.writeHead(302, { 'Location': docsReturnUrl, 'Set-Cookie': "state=" + cookie + ";" + (secure_cookie ? 'Secure;' : '') + "HttpOnly;Max-Age=300;Path=" + settings.base_path + "/token" });
+                    encodedState = state_1.encodeState(accessToken, state_password);
+                    res.writeHead(302, { 'Location': docsReturnUrl + '?state=' + encodedState });
                     res.end();
                     return [2];
             }
         });
     });
 }
-function tokenRequestHandler(settings, req, res) {
-    var cookie = req.headers.cookie;
-    if (!cookie) {
-        badRequest(res, '"state" cookie is required.');
+function tokenRequestHandler(settings, query, res) {
+    var state = query.state;
+    if (!state || Array.isArray(state)) {
+        badRequest(res, '"state" is required.');
         return;
     }
-    var match = cookie.match(cookieRegex);
-    if (match === null) {
-        badRequest(res, '"state" cookie is invalid or missing.');
-        return;
-    }
-    var encryptedState = match[1];
-    var accessToken = state_1.tryDecodeState(encryptedState, settings.state_password);
+    var accessToken = state_1.tryDecodeState(state, settings.state_password);
     if (accessToken instanceof Error) {
         badRequest(res, accessToken.message);
         return;
