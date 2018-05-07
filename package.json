@@ -10,7 +10,8 @@
     "start": "node dist/index.js"
   },
   "engines": {
-    "node": "8.1.0"
+    "node": "8.x.x",
+    "npm": "5.x.x"
   },
   "repository": {
     "type": "git",
