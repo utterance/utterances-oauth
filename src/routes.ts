@@ -32,7 +32,7 @@ export function routeRequest(settings: AppSettings, req: IncomingMessage, res: S
   } else if (req.method === 'GET' && pathname === base_path + '/token') {
     addCorsHeaders(res, settings.origins, req.headers.origin as string);
     tokenRequestHandler(settings, query, res);
-  } else if (req.method === 'POST' && pathname.startsWith(base_path) && /^\/repos\/[a-z][\w-]+\/[\w-.]+\/issues$/i.test(pathname.substr(base_path.length))) {
+  } else if (req.method === 'POST' && pathname.startsWith(base_path) && /^\/repos\/[\w-]+\/[\w-.]+\/issues$/i.test(pathname.substr(base_path.length))) {
     addCorsHeaders(res, settings.origins, req.headers.origin as string);
     postIssueRequestHandler(settings, pathname.substr(base_path.length), req, res);
   } else {
