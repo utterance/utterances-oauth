@@ -68,7 +68,7 @@ function routeRequest(settings, req, res) {
         cors_1.addCorsHeaders(res, settings.origins, req.headers.origin);
         tokenRequestHandler(settings, query, res);
     }
-    else if (req.method === 'POST' && pathname.startsWith(base_path) && /^\/repos\/[\w-]+\/[\w-.]+\/issues$/i.test(pathname.substr(base_path.length))) {
+    else if (req.method === 'POST' && pathname.startsWith(base_path) && /^\/repos\/[\w-_]+\/[\w-_.]+\/issues$/i.test(pathname.substr(base_path.length))) {
         cors_1.addCorsHeaders(res, settings.origins, req.headers.origin);
         postIssueRequestHandler(settings, pathname.substr(base_path.length), req, res);
     }
