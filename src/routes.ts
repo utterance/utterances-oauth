@@ -1,195 +1,212 @@
-import { IncomingMessage, ServerResponse } from 'http';
-import { parse as parseUrl } from 'url';
-import { stringify as stringifyQuery, ParsedUrlQuery } from 'querystring';
-import { request, getBody } from './request';
-import { AppSettings } from './app-settings';
+import { settings } from './app-settings';
 import { encodeState, tryDecodeState } from './state';
 import { addCorsHeaders } from './cors';
 
 const authorizeUrl = 'https://github.com/login/oauth/authorize';
 const accessTokenUrl = 'https://github.com/login/oauth/access_token';
 
-export function routeRequest(settings: AppSettings, req: IncomingMessage, res: ServerResponse) {
-  const url = parseUrl(req.url as string, true);
-  const pathname = url.pathname!;
-  const query = url.query as ParsedUrlQuery;
-  const base_path = settings.base_path;
+export async function processRequest(request: Request) {
+  const response = await routeRequest(request);
+  applySecurityPolicy(response);
+  return response;
+}
 
-  applySecurityPolicy(res);
+async function routeRequest(request: Request) {
+  const { origin, pathname, searchParams: search } = new URL(request.url);
 
-  if (req.method === 'OPTIONS') {
-    addCorsHeaders(res, settings.origins, req.headers.origin as string);
-    res.writeHead(200);
-    res.end();
-  } else if (req.method === 'GET' && (pathname === '' || pathname === '/' || pathname === base_path || pathname === base_path + '/')) {
-    res.writeHead(200);
-    res.write('alive');
-    res.end();
-  } else if (req.method === 'GET' && pathname === base_path + '/authorize') {
-    authorizeRequestHandler(settings, query, res);
-  } else if (req.method === 'GET' && pathname === base_path + '/authorized') {
-    authorizedRequestHandler(settings, query, res);
-  } else if (req.method === 'GET' && pathname === base_path + '/token') {
-    addCorsHeaders(res, settings.origins, req.headers.origin as string);
-    tokenRequestHandler(settings, query, res);
-  } else if (req.method === 'POST' && pathname.startsWith(base_path) && /^\/repos\/[\w-_]+\/[\w-_.]+\/issues$/i.test(pathname.substr(base_path.length))) {
-    addCorsHeaders(res, settings.origins, req.headers.origin as string);
-    postIssueRequestHandler(settings, pathname.substr(base_path.length), req, res);
+  if (request.method === 'OPTIONS') {
+    const response = new Response(undefined, { status: 200, statusText: 'OK' });
+    addCorsHeaders(response, settings.origins, request.headers.get('origin'));
+    return response;
+  } else if (request.method === 'GET' && (pathname === '' || pathname === '/')) {
+    return new Response('alive', {
+      status: 200,
+      statusText: 'OK',
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  } else if (request.method === 'GET' && pathname === '/authorize') {
+    return authorizeRequestHandler(origin, search);
+  } else if (request.method === 'GET' && pathname === '/authorized') {
+    return await authorizedRequestHandler(search);
+  } else if (request.method === 'GET' && pathname === '/token') {
+    const response = await tokenRequestHandler(search);
+    addCorsHeaders(response, settings.origins, request.headers.get('origin'));
+    return response;
+  } else if (request.method === 'POST' && /^\/repos\/[\w-]+\/[\w-.]+\/issues$/i.test(pathname)) {
+    const response = await postIssueRequestHandler(pathname, request);
+    addCorsHeaders(response, settings.origins, request.headers.get('origin'));
+    return response;
   } else {
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
-    res.write(`Not Found: ${pathname}`);
-    res.end();
+    return new Response(`Not Found: ${pathname}`, {
+      status: 404,
+      statusText: 'not found',
+      headers: { 'Content-Type': 'text/plain' }
+    });
   }
 }
 
-function applySecurityPolicy(res: ServerResponse) {
-  // none of your business who we're powered by.
-  res.removeHeader('X-Powered-By');
+function applySecurityPolicy(response: Response) {
   // pages are not allowed to be shown in iframes.
-  res.setHeader('X-Frame-Options', 'DENY');
+  response.headers.append('X-Frame-Options', 'DENY');
   // pages do not have any cross-origin deps on scripts or css.
-  res.setHeader('Content-Security-Policy', `default-src 'self'`);
+  response.headers.append('Content-Security-Policy', `default-src 'self'`);
   // don't cache responses.
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  response.headers.append('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
 }
 
-function badRequest(res: ServerResponse, message: string) {
-  res.writeHead(400, { 'Content-Type': 'text/plain' });
-  res.write(message);
-  res.end();
+function badRequest(message: string) {
+  return new Response(message, {
+    status: 400,
+    statusText: 'bad request',
+    headers: { 'Content-Type': 'text/plain' }
+  });
 }
 
-async function authorizeRequestHandler(settings: AppSettings, query: ParsedUrlQuery, res: ServerResponse) {
-  const { origins, client_id, state_password, app_root } = settings;
+async function authorizeRequestHandler(origin: string, search: URLSearchParams) {
+  const { origins, client_id, state_password } = settings;
 
-  const { redirect_uri: appReturnUrl } = query;
+  const appReturnUrl = search.get('redirect_uri');
 
-  if (!appReturnUrl || Array.isArray(appReturnUrl) || !origins.find(origin => appReturnUrl.indexOf(origin) === 0)) {
-    badRequest(res, `"redirect_uri" is required and must match the following origins: "${origins.join('", "')}".`);
-    return;
+  if (!appReturnUrl || !origins.find(origin => appReturnUrl.indexOf(origin) === 0)) {
+    return badRequest(`"redirect_uri" is required and must match the following origins: "${origins.join('", "')}".`);
   }
 
-  const state = encodeState(appReturnUrl, state_password);
-  const redirect_uri = app_root + '/authorized';
-  res.writeHead(302, { Location: `${authorizeUrl}?${stringifyQuery({ client_id, redirect_uri, state })}` });
-  res.end();
+  const state = await encodeState(appReturnUrl, state_password);
+  const redirect_uri = origin + '/authorized';
+  return new Response(undefined, {
+    status: 302,
+    statusText: 'found',
+    headers: {
+      Location: `${authorizeUrl}?${new URLSearchParams({ client_id, redirect_uri, state })}`
+    }
+  });
 }
 
-async function authorizedRequestHandler(settings: AppSettings, query: ParsedUrlQuery, res: ServerResponse) {
-  const { code, state } = query;
+async function authorizedRequestHandler(search: URLSearchParams) {
+  const code = search.get('code');
+  const state = search.get('state');
 
-  if (!code || Array.isArray(code)) {
-    badRequest(res, '"code" is required.');
-    return;
+  if (!code) {
+    return badRequest('"code" is required.');
   }
 
-  if (!state || Array.isArray(state)) {
-    badRequest(res, '"state" is required.');
-    return;
+  if (!state) {
+    return badRequest('"state" is required.');
   }
 
-  const { client_id, client_secret, state_password, user_agent, secure_cookie } = settings;
+  const { client_id, client_secret, state_password } = settings;
 
-  const docsReturnUrl = tryDecodeState(state, state_password);
-  if (docsReturnUrl instanceof Error) {
-    badRequest(res, docsReturnUrl.message)
-    return;
+  const returnUrl = await tryDecodeState(state, state_password);
+  if (returnUrl instanceof Error) {
+    return badRequest(returnUrl.message);
   }
 
-  const args = {
-    url: accessTokenUrl,
+  const init = {
     method: 'POST',
-    body: stringifyQuery({ client_id, client_secret, code, state }),
+    body: (new URLSearchParams({ client_id, client_secret, code, state })).toString(),
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': user_agent
+      'User-Agent': 'utterances'
     }
   };
 
   let accessToken: string;
   try {
-    accessToken = JSON.parse(await request(args)).access_token;
-  }
-  catch (err) {
-    res.writeHead(503, 'Unable to load token from GitHub.', { 'Set-Cookie': `state=;${secure_cookie ? 'Secure;' : ''}HttpOnly;Max-Age=0;Path=/token` }); // expire the cookie.
-    res.end();
-    return;
+    const response = await fetch(accessTokenUrl, init);
+    if (response.ok) {
+      const data = await response.json();
+      accessToken = data.access_token;
+    } else {
+      throw new Error(`Access token response had status ${response.status}.`);
+    }
+  } catch (_) {
+    return new Response('Unable to load token from GitHub.', {
+      headers: {
+        'Set-Cookie': 'state=;Secure;HttpOnly;Max-Age=0;Path=/token'
+      }
+    });
   }
 
-  const encodedState = encodeState(accessToken, state_password);
-  res.writeHead(302, { 'Location': docsReturnUrl + '?state=' + encodedState });
-  res.end();
+  const encodedState = await encodeState(accessToken, state_password);
+  return new Response(undefined, {
+    status: 302,
+    statusText: 'found',
+    headers: {
+      'Location': `${returnUrl}?${new URLSearchParams({ state: encodedState })}`
+    }
+  });
 }
 
-function tokenRequestHandler(settings: AppSettings, query: ParsedUrlQuery, res: ServerResponse) {
-  const { state } = query;
+async function tokenRequestHandler(search: URLSearchParams) {
+  const state = search.get('state');
 
-  if (!state || Array.isArray(state)) {
-    badRequest(res, '"state" is required.');
-    return;
+  if (!state) {
+    return badRequest('"state" is required.');
   }
 
-  const accessToken = tryDecodeState(state, settings.state_password);
+  const accessToken = await tryDecodeState(state, settings.state_password);
   if (accessToken instanceof Error) {
-    badRequest(res, accessToken.message)
-    return;
+    return badRequest(accessToken.message);
   }
 
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.write(JSON.stringify(accessToken));
-  res.end();
+  return new Response(JSON.stringify(accessToken), {
+    status: 200,
+    statusText: 'OK',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
 }
 
+async function postIssueRequestHandler(path: string, request: Request) {
+  const authorization = request.headers.get('authorization');
 
-async function postIssueRequestHandler(settings: AppSettings, path: string, req: IncomingMessage, res: ServerResponse) {
-  let body: string;
-  try {
-    body = await getBody(req);
-  } catch (err) {
-    badRequest(res, 'Unable to read request.');
-    return;
+  if (!authorization) {
+    return badRequest('Authorization header is required.');
   }
 
-  const authorization = req.headers.authorization;
-
-  if (authorization === undefined || Array.isArray(authorization)) {
-    badRequest(res, 'Authorization header is required.');
-    return;
-  }
-
-  const authArgs = {
-    url: `https://api.github.com/user`,
+  const authInit = {
     method: 'GET',
     headers: {
       'Authorization': authorization,
-      'User-Agent': settings.user_agent
+      'User-Agent': 'utterances'
     }
   };
 
+  let authenticated = false;
   try {
-    await request(authArgs);
-  } catch (err) {
-    res.writeHead(401, 'Not Authorized');
-    res.end();
-    return;
+    const response = await fetch('https://api.github.com/user', authInit);
+    authenticated = response.ok;
+  } catch (_) {
+  }
+  if (!authenticated) {
+    return new Response(undefined, { status: 401, statusText: 'not authorized' });
   }
 
-  const args = {
-    url: `https://api.github.com${path}`,
+  const init = {
     method: 'POST',
     headers: {
       'Authorization': 'token ' + settings.bot_token,
-      'User-Agent': settings.user_agent
+      'User-Agent': 'utterances'
     },
-    body
-  }
+    body: request.body
+  };
   try {
-    const json = await request(args);
-    res.writeHead(200);
-    res.write(json);
-  } catch (err) {
-    res.writeHead(503, 'Unable to post issue to GitHub.');
+    const response = await fetch(`https://api.github.com${path}`, init);
+    const body = await response.text();
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+  } catch (_) {
+    return new Response('Unable to post issue to GitHub.', {
+      status: 503,
+      statusText: 'service unavailable',
+      headers: { 'Content-Type': 'text/plain' }
+    });
   }
-  res.end();
 }

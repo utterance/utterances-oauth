@@ -1,26 +1,40 @@
-import { createDecipheriv, createCipheriv, randomBytes } from 'crypto';
+export async function encrypt(plaintext: string, password: string) {
+  const pwUtf8 = new TextEncoder().encode(password);                                 // encode password as UTF-8
+  const pwHash = await crypto.subtle.digest('SHA-256', pwUtf8);                      // hash the password
 
-const encryptionAlgorithm = 'aes-256-gcm';
+  const iv = crypto.getRandomValues(new Uint8Array(12));                             // get 96-bit random iv
 
-export function encrypt(text: string, password: string) {
-  const iv = randomBytes(16);
-  const cipher = createCipheriv(encryptionAlgorithm, password, iv);
-  let cipherText = cipher.update(text, 'utf8', 'hex');
-  cipherText += cipher.final('hex');
-  const authTag = cipher.getAuthTag().toString('hex');
-  return iv.toString('hex') + authTag + cipherText;
+  const alg = { name: 'AES-GCM', iv: iv } as any;                                    // specify algorithm to use
+
+  const key = await crypto.subtle.importKey('raw', pwHash, alg, false, ['encrypt']); // generate key from pw
+
+  const ptUint8 = new TextEncoder().encode(plaintext);                               // encode plaintext as UTF-8
+  const ctBuffer = await crypto.subtle.encrypt(alg, key, ptUint8);                   // encrypt plaintext using key
+
+  const ctArray = Array.from(new Uint8Array(ctBuffer));                              // ciphertext as byte array
+  const ctStr = ctArray.map(byte => String.fromCharCode(byte)).join('');             // ciphertext as string
+  const ctBase64 = btoa(ctStr);                                                      // encode ciphertext as base64
+
+  const ivHex = Array.from(iv).map(b => ('00' + b.toString(16)).slice(-2)).join(''); // iv as hex string
+
+  return ivHex + ctBase64;                                                           // return iv+ciphertext
 }
 
-export function decrypt(text: string, password: string) {
-  if (text.length < 64) {
-    throw new Error('invalid cipher text');
-  }
-  const iv = Buffer.from(text.substr(0, 32), 'hex');
-  const authTag = Buffer.from(text.substr(32, 32), 'hex');
-  const cipherText = text.substr(64);
-  const decipher = createDecipheriv(encryptionAlgorithm, password, iv);
-  decipher.setAuthTag(authTag);
-  let dec = decipher.update(cipherText, 'hex', 'utf8');
-  dec += decipher.final('utf8');
-  return dec;
+export async function decrypt(ciphertext: string, password: string) {
+  const pwUtf8 = new TextEncoder().encode(password);                                   // encode password as UTF-8
+  const pwHash = await crypto.subtle.digest('SHA-256', pwUtf8);                        // hash the password
+
+  const iv = ciphertext.slice(0, 24).match(/.{2}/g)!.map(byte => parseInt(byte, 16));  // get iv from ciphertext
+
+  const alg = { name: 'AES-GCM', iv: new Uint8Array(iv) } as any;                      // specify algorithm to use
+
+  const key = await crypto.subtle.importKey('raw', pwHash, alg, false, ['decrypt']);   // use pw to generate key
+
+  const ctStr = atob(ciphertext.slice(24));                                            // decode base64 ciphertext
+  const ctUint8 = new Uint8Array(ctStr.match(/[\s\S]/g)!.map(ch => ch.charCodeAt(0))); // ciphertext as Uint8Array
+
+  const plainBuffer = await crypto.subtle.decrypt(alg, key, ctUint8);                  // decrypt ciphertext using key
+  const plaintext = new TextDecoder().decode(plainBuffer);                             // decode password from UTF-8
+
+  return plaintext;                                                                    // return the plaintext
 }

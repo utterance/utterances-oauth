@@ -1,14 +1,12 @@
-import { createServer } from 'http';
-import { getAppSettings } from './app-settings';
-import { routeRequest } from './routes';
+import { processRequest } from './routes';
 
-async function start() {
-  const settings = await getAppSettings();
-  createServer((req, res) => routeRequest(settings, req, res))
-    .listen(process.env.PORT)
-    .on('listening', () => {
-      console.log('Started.');
-    });
+interface FetchEvent extends Event {
+  request: Request;
+  respondWith(response: Promise<Response> | Response): Promise<Response>;
 }
 
-start();
+addEventListener('fetch', e => {
+  // work around as strict typescript check doesn't allow e to be of type FetchEvent
+  const fe = e as FetchEvent
+  fe.respondWith(processRequest(fe.request));
+});
