@@ -5,13 +5,14 @@ import { addCorsHeaders } from './cors';
 const authorizeUrl = 'https://github.com/login/oauth/authorize';
 const accessTokenUrl = 'https://github.com/login/oauth/access_token';
 
-export async function processRequest(request: Request) {
-  const response = await routeRequest(request);
+export async function processRequest(fetchEvent: FetchEvent) {
+  const response = await routeRequest(fetchEvent);
   applySecurityPolicy(response);
   return response;
 }
 
-async function routeRequest(request: Request) {
+async function routeRequest(fetchEvent: FetchEvent) {
+  const request = fetchEvent.request;
   const { origin, pathname, searchParams: search } = new URL(request.url);
 
   if (request.method === 'OPTIONS') {
@@ -33,7 +34,7 @@ async function routeRequest(request: Request) {
     addCorsHeaders(response, settings.origins, request.headers.get('origin'));
     return response;
   } else if (request.method === 'POST' && /^\/repos\/[\w-]+\/[\w-.]+\/issues$/i.test(pathname)) {
-    const response = await postIssueRequestHandler(pathname, request);
+    const response = await postIssueRequestHandler(pathname, search, fetchEvent);
     addCorsHeaders(response, settings.origins, request.headers.get('origin'));
     return response;
   } else {
@@ -159,7 +160,8 @@ async function tokenRequestHandler(search: URLSearchParams) {
   });
 }
 
-async function postIssueRequestHandler(path: string, request: Request) {
+async function postIssueRequestHandler(path: string, search: URLSearchParams, fetchEvent: FetchEvent) {
+  const request = fetchEvent.request;
   const authorization = request.headers.get('authorization');
 
   if (!authorization) {
@@ -188,14 +190,26 @@ async function postIssueRequestHandler(path: string, request: Request) {
     method: 'POST',
     headers: {
       'Authorization': 'token ' + settings.bot_token,
-      'User-Agent': 'utterances'
+      'User-Agent': 'utterances',
     },
     body: request.body
   };
   try {
     const response = await fetch(`https://api.github.com${path}`, init);
-    const body = await response.text();
-    return new Response(body, {
+    const issue = await response.json();
+    if (search.has('label')) {
+      const labelsInit = {
+        method: 'POST',
+        headers: {
+          'Authorization': authorization,
+          'User-Agent': 'utterances',
+          'Accept': 'application/vnd.github.symmetra-preview+json'
+        },
+        body: JSON.stringify({ labels: [search.get('label')] })
+      };
+      fetchEvent.waitUntil(fetch(`https://api.github.com${path}/${issue.number}/labels`, labelsInit));
+    }
+    return new Response(JSON.stringify(issue), {
       status: response.status,
       statusText: response.statusText,
       headers: {
