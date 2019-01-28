@@ -122,19 +122,17 @@ async function authorizedRequestHandler(search: URLSearchParams) {
       throw new Error(`Access token response had status ${response.status}.`);
     }
   } catch (_) {
-    return new Response('Unable to load token from GitHub.', {
-      headers: {
-        'Set-Cookie': 'state=;Secure;HttpOnly;Max-Age=0;Path=/token'
-      }
-    });
+    return new Response('Unable to load token from GitHub.');
   }
 
   const encodedState = await encodeState(accessToken, state_password);
+  const url = new URL(returnUrl);
+  url.searchParams.set('state', encodedState);
   return new Response(undefined, {
     status: 302,
     statusText: 'found',
     headers: {
-      'Location': `${returnUrl}?${new URLSearchParams({ state: encodedState })}`
+      'Location': url.href
     }
   });
 }
