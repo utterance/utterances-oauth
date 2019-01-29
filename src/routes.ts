@@ -29,8 +29,8 @@ async function routeRequest(fetchEvent: FetchEvent) {
     return authorizeRequestHandler(origin, search);
   } else if (request.method === 'GET' && pathname === '/authorized') {
     return await authorizedRequestHandler(search);
-  } else if (request.method === 'GET' && pathname === '/token') {
-    const response = await tokenRequestHandler(search);
+  } else if (request.method === 'POST' && pathname === '/token') {
+    const response = await tokenRequestHandler(request);
     addCorsHeaders(response, settings.origins, request.headers.get('origin'));
     return response;
   } else if (request.method === 'POST' && /^\/repos\/[\w-]+\/[\w-.]+\/issues$/i.test(pathname)) {
@@ -63,13 +63,21 @@ function badRequest(message: string) {
   });
 }
 
+function unauthorized(message: string) {
+  return new Response(message, {
+    status: 401,
+    statusText: 'unauthorized',
+    headers: { 'Content-Type': 'text/plain' }
+  });
+}
+
 async function authorizeRequestHandler(origin: string, search: URLSearchParams) {
-  const { origins, client_id, state_password } = settings;
+  const { client_id, state_password } = settings;
 
   const appReturnUrl = search.get('redirect_uri');
 
-  if (!appReturnUrl || !origins.find(origin => appReturnUrl.indexOf(origin) === 0)) {
-    return badRequest(`"redirect_uri" is required and must match the following origins: "${origins.join('", "')}".`);
+  if (!appReturnUrl) {
+    return badRequest(`"redirect_uri" is required.`);
   }
 
   const state = await encodeState(appReturnUrl, state_password);
@@ -125,31 +133,29 @@ async function authorizedRequestHandler(search: URLSearchParams) {
     return new Response('Unable to load token from GitHub.');
   }
 
-  const encodedState = await encodeState(accessToken, state_password);
-  const url = new URL(returnUrl);
-  url.searchParams.set('state', encodedState);
   return new Response(undefined, {
     status: 302,
     statusText: 'found',
     headers: {
-      'Location': url.href
+      'Location': returnUrl,
+      'Set-Cookie': `token=${accessToken}; Path=/; HttpOnly; Secure;`
     }
   });
 }
 
-async function tokenRequestHandler(search: URLSearchParams) {
-  const state = search.get('state');
+async function tokenRequestHandler(request: Request) {
+  const cookie = request.headers.get('cookie');
 
-  if (!state) {
-    return badRequest('"state" is required.');
+  if (!cookie) {
+    return unauthorized('"cookie" header is required.');
   }
 
-  const accessToken = await tryDecodeState(state, settings.state_password);
-  if (accessToken instanceof Error) {
-    return badRequest(accessToken.message);
+  const token = new URLSearchParams(cookie.trim().replace(/;\s*/g, '&')).get('token');
+  if (!token) {
+    return unauthorized('"token" cookie is required.');
   }
 
-  return new Response(JSON.stringify(accessToken), {
+  return new Response(JSON.stringify(token), {
     status: 200,
     statusText: 'OK',
     headers: {
