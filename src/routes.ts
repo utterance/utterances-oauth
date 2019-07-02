@@ -133,11 +133,14 @@ async function authorizedRequestHandler(search: URLSearchParams) {
     return new Response('Unable to load token from GitHub.');
   }
 
+  const url = new URL(returnUrl);
+  url.searchParams.set('utterances', accessToken);
+
   return new Response(undefined, {
     status: 302,
     statusText: 'found',
     headers: {
-      'Location': returnUrl,
+      'Location': url.href,
       'Set-Cookie': `token=${accessToken}; Path=/token; HttpOnly; Secure; Max-Age=${60 * 60 * 24 * 356}`
     }
   });
