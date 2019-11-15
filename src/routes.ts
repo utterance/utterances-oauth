@@ -141,7 +141,7 @@ async function authorizedRequestHandler(search: URLSearchParams) {
     statusText: 'found',
     headers: {
       'Location': url.href,
-      'Set-Cookie': `token=${accessToken}; Path=/token; HttpOnly; Secure; Max-Age=${60 * 60 * 24 * 356}`
+      'Set-Cookie': `token=${accessToken}; Path=/token; HttpOnly; Secure; SameSite=None; Max-Age=${60 * 60 * 24 * 356}`
     }
   });
 }
