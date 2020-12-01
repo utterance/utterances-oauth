@@ -63,14 +63,6 @@ function badRequest(message: string) {
   });
 }
 
-function unauthorized(message: string) {
-  return new Response(message, {
-    status: 401,
-    statusText: 'unauthorized',
-    headers: { 'Content-Type': 'text/plain' }
-  });
-}
-
 async function authorizeRequestHandler(origin: string, search: URLSearchParams) {
   const { client_id, state_password } = settings;
 
@@ -134,30 +126,30 @@ async function authorizedRequestHandler(search: URLSearchParams) {
   }
 
   const url = new URL(returnUrl);
-  url.searchParams.set('utterances', accessToken);
+  const session = await encodeState(accessToken, state_password, Date.now() + 1000 * 60 * 60 * 24 * 365);
+  url.searchParams.set('utterances', session);
 
   return new Response(undefined, {
     status: 302,
     statusText: 'found',
     headers: {
-      'Location': url.href,
-      'Set-Cookie': `token=${accessToken}; Path=/token; HttpOnly; Secure; SameSite=None; Max-Age=${60 * 60 * 24 * 356}`
+      'Location': url.href
     }
   });
 }
 
 async function tokenRequestHandler(request: Request) {
-  const cookie = request.headers.get('cookie');
-
-  if (!cookie) {
-    return unauthorized('"cookie" header is required.');
+  const { state_password } = settings;
+  let session: string;
+  try {
+    session = await request.json();
+  } catch {
+    return badRequest('Unable to parse body');
   }
-
-  const token = new URLSearchParams(cookie.trim().replace(/;\s*/g, '&')).get('token');
-  if (!token) {
-    return unauthorized('"token" cookie is required.');
+  const token = await tryDecodeState(session, state_password);
+  if (token instanceof Error) {
+    return badRequest(token.message);
   }
-
   return new Response(JSON.stringify(token), {
     status: 200,
     statusText: 'OK',

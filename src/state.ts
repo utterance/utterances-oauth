@@ -1,14 +1,14 @@
 import { encrypt, decrypt } from "./aes";
 
-const validityPeriod = 5 * 60 * 1000; // 5 minutes
+const defaultValidityPeriod = 5 * 60 * 1000; // 5 minutes
 
 interface State {
   value: string;
   expires: number;
 }
 
-export function encodeState(value: string, password: string) {
-  const state: State = { value, expires: Date.now() + validityPeriod };
+export function encodeState(value: string, password: string, expires = Date.now() + defaultValidityPeriod ) {
+  const state: State = { value, expires };
   return encrypt(JSON.stringify(state), password);
 }
 
