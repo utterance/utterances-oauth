@@ -37,6 +37,8 @@ async function routeRequest(fetchEvent: FetchEvent) {
     const response = await postIssueRequestHandler(pathname, search, fetchEvent);
     addCorsHeaders(response, settings.origins, request.headers.get('origin'));
     return response;
+  }else if (request.method === 'POST' && pathname === '/webhook') {
+    return await webhookRequestHandler(fetchEvent);
   } else {
     return new Response(`Not Found: ${pathname}`, {
       status: 404,
@@ -222,4 +224,8 @@ async function postIssueRequestHandler(path: string, search: URLSearchParams, fe
       headers: { 'Content-Type': 'text/plain' }
     });
   }
+}
+
+async function webhookRequestHandler(_: FetchEvent) {
+  return new Response(undefined, { status: 204 });
 }
