@@ -1,0 +1,65 @@
+ name: Deploy utterances-oauth
+ on:
+   push:
+     branches: [ gh-pages ]
+
+ jobs:
+   build:
+     runs-on: ubuntu-latest
+
+     strategy:
+       matrix:
+         node-version: [14]
+
+     steps:
+     - uses: actions/checkout@v2
+
+     - name: Use Node.js ${{ matrix.node-version }}
+       uses: actions/setup-node@v1
+       with:
+         node-version: ${{ matrix.node-version }}
+
+     - name: Install Dependencies
+       run: yarn install
+
+       # Add .env before build
+     - name: Add .env
+       run: |
+         cat > .env <<EOF
+         BOT_TOKEN=$BOT_TOKEN
+         CLIENT_ID=$CLIENT_ID
+         CLIENT_SECRET=$CLIENT_SECRET
+         STATE_PASSWORD=$STATE_PASSWORD
+         ORIGINS=$ORIGINS
+         EOF
+       env:
+         BOT_TOKEN: ${{ secrets.UTTERANCES_BOT_TOKEN }}
+         CLIENT_ID: ${{ secrets.UTTERANCES_CLIENT_ID }}
+         CLIENT_SECRET: ${{ secrets.UTTERANCES_CLIENT_SECRET }}
+         STATE_PASSWORD: ${{ secrets.UTTERANCES_STATE_PASSWORD }}
+         ORIGINS: https://utterances.example.com
+
+     - name: Build
+       run: yarn run build
+
+     # Add wrangler.toml required by Wrangler
+     - name: Add wrangler.toml
+       run: |
+         cat > wrangler.toml <<EOF
+         name = "utterances-oauth"
+         type = "javascript"
+         routes = [
+             "api.utterances.example.com/*"
+         ]
+         account_id = "$ACCOUNT_ID"
+         zone_id = "$ZONE_ID"
+         EOF
+       env:
+         ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+         ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+
+     # Deploy to Cloudflare Workers with Wrangler
+     - name: Deploy to Cloudflare Workers with Wrangler
+       uses: cloudflare/wrangler-action@1.2.0
+       with:
+         apiToken: ${{ secrets.CF_API_TOKEN }}
